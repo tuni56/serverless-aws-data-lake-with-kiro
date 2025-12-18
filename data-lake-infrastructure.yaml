@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Minimal data lake infrastructure for dev environment'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'latam-data-lake'
+    Description: 'Project name for resource naming'
+
+Resources:
+  # S3 Buckets
+  RawDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-raw-dev-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: env
+          Value: dev
+        - Key: team
+          Value: data
+        - Key: project
+          Value: latam-data-lake
+
+  CuratedDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-curated-dev-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: env
+          Value: dev
+        - Key: team
+          Value: data
+        - Key: project
+          Value: latam-data-lake
+
+  # Glue Database
+  DataLakeDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Sub '${ProjectName}_dev_catalog'
+        Description: 'Data catalog for LATAM data lake dev environment'
+
+  # IAM Role for Glue Crawlers
+  GlueCrawlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-glue-crawler-role-dev'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt RawDataBucket.Arn
+                  - !Sub '${RawDataBucket.Arn}/*'
+                  - !GetAtt CuratedDataBucket.Arn
+                  - !Sub '${CuratedDataBucket.Arn}/*'
+      Tags:
+        - Key: env
+          Value: dev
+        - Key: team
+          Value: data
+        - Key: project
+          Value: latam-data-lake
+
+  # Glue Crawler for Raw Data
+  RawDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub '${ProjectName}-raw-crawler-dev'
+      Role: !GetAtt GlueCrawlerRole.Arn
+      DatabaseName: !Ref DataLakeDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub 's3://${RawDataBucket}/'
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+      Tags:
+        env: dev
+        team: data
+        project: latam-data-lake
+
+  # Glue Crawler for Curated Data
+  CuratedDataCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub '${ProjectName}-curated-crawler-dev'
+      Role: !GetAtt GlueCrawlerRole.Arn
+      DatabaseName: !Ref DataLakeDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub 's3://${CuratedDataBucket}/'
+      SchemaChangePolicy:
+        UpdateBehavior: UPDATE_IN_DATABASE
+        DeleteBehavior: LOG
+      Tags:
+        env: dev
+        team: data
+        project: latam-data-lake
+
+Outputs:
+  RawBucketName:
+    Description: 'Raw data S3 bucket name'
+    Value: !Ref RawDataBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-RawBucket'
+
+  CuratedBucketName:
+    Description: 'Curated data S3 bucket name'
+    Value: !Ref CuratedDataBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-CuratedBucket'
+
+  GlueDatabaseName:
+    Description: 'Glue database name'
+    Value: !Ref DataLakeDatabase
+    Export:
+      Name: !Sub '${AWS::StackName}-GlueDatabase'
+
+  CrawlerRoleArn:
+    Description: 'Glue crawler IAM role ARN'
+    Value: !GetAtt GlueCrawlerRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CrawlerRole'

@@ -1,0 +1,4 @@
+order_id,customer_id,amount,country
+1,101,120.5,AR
+2,102,89.9,CL
+3,103,230.0,MX
