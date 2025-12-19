@@ -45,8 +45,9 @@ This project shows how to design, deploy, and operate a **production-inspired da
 ---
 
 ## Architecture
+<img width="1536" height="1024" alt="architecture_diagram" src="https://github.com/user-attachments/assets/e3773315-8893-4499-a1d4-16bbf70eb226" />
 
-![architecture_diagram](docs/architecture.png)
+
 
 ### Key characteristics
 - Fully serverless (no EMR, no always-on compute)
